@@ -3,7 +3,6 @@ package message
 import (
 	"crowfather/internal/groupme"
 	"crowfather/internal/open_ai"
-	"fmt"
 	"strings"
 )
 
@@ -23,10 +22,12 @@ func MessageHandler(message groupme.Message, oai *open_ai.OpenAIService, gms *gr
 			return "", err
 		}
 
-		_, err = gms.SendMessage(message, resp)
+		if message.UserId != "" {
+			_, err = gms.SendMessage(message, resp)
 
-		if err != nil {
-			return "", err
+			if err != nil {
+				return "", err
+			}
 		}
 
 		return resp, nil
