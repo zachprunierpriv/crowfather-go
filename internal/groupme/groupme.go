@@ -38,7 +38,7 @@ func (g *GroupMeService) SendMessage(message Message, response string) (bool, er
 		Path:   "/v3/bots/post",
 	}
 
-	msg := fmt.Sprintf("@%s %s", message.UserId, response)
+	msg := fmt.Sprintf("@%s %s", message.Name, response)
 
 	messageSendRequest := MessageSendRequest{
 		BotId: os.Getenv("GROUPME_BOT_ID"),

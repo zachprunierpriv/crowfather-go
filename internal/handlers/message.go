@@ -3,11 +3,16 @@ package message
 import (
 	"crowfather/internal/groupme"
 	"crowfather/internal/open_ai"
+	"fmt"
 	"strings"
 )
 
 func MessageHandler(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.GroupMeService) (string, error) {
 	lowercasedMessage := strings.ToLower(message.Text)
+
+	if message.SenderType != "user" {
+		return "", fmt.Errorf("message is not from a user")
+	}
 
 	if strings.Contains(lowercasedMessage, "hey crowfather") {
 		cleanedMessage := strings.TrimPrefix(message.Text, "hey crowfather")
