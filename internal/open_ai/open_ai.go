@@ -65,7 +65,6 @@ func (oai *OpenAIService) CreateThread() (string, error) {
 	return t.ID, nil
 }
 func (oai *OpenAIService) CreateMessage(message string) (openai.Message, error) {
-	fmt.Println(message)
 	msg, err := oai.ThreadClient.Messages.New(context.Background(), oai.ThreadId, openai.BetaThreadMessageNewParams{
 		Role: "user",
 		Content: openai.BetaThreadMessageNewParamsContentUnion{
