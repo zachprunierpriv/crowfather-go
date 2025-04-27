@@ -172,7 +172,7 @@ func (oai *OpenAIService) getCompletedResponse(ctx context.Context, threadId str
 	}
 
 	if !validateResponse(messages) {
-		return "", fmt.Errorf("failed to validate response")
+		return "", fmt.Errorf("iled to validate response")
 	}
 
 	return cleanResponse(messages.Data[0].Content[0].Text.Value), nil
