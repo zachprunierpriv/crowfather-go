@@ -2,13 +2,14 @@ package open_ai
 
 import (
 	"context"
+	"crowfather/internal/config"
 	"fmt"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/pagination"
 	"github.com/openai/openai-go/packages/param"
-	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,43 +21,55 @@ type Config struct {
 
 type OpenAIService struct {
 	ThreadClient *openai.BetaThreadService
-	ThreadId     string
+	ThreadIds    map[string]string
+	Config       *config.OpenAIConfig
+	Options      []option.RequestOption
+	mu           sync.Mutex
 }
 
-var opts = []option.RequestOption{
-	option.WithAPIKey(os.Getenv("OPENAI_API_KEY")),
-	option.WithBaseURL("https://api.openai.com/v1"),
-}
+func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
+	var opts = []option.RequestOption{
+		option.WithAPIKey(config.APIKey),
+		option.WithBaseURL(config.BaseURL),
+	}
 
-func NewOpenAIService() *OpenAIService {
 	threadC := openai.NewBetaThreadService(
 		opts[0],
 	)
 
 	return &OpenAIService{
 		ThreadClient: &threadC,
+		Config:       config,
+		Options:      opts,
+		ThreadIds:    make(map[string]string),
 	}
 }
 
-func (oai *OpenAIService) SetThreadId() error {
-	if oai.ThreadId == "" {
-		thread, err := oai.CreateThread()
+func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
+	oai.mu.Lock()
+	defer oai.mu.Unlock()
 
-		if err != nil {
-			return fmt.Errorf("failed to create thread %v", err)
-		}
-
-		oai.ThreadId = thread
+	if threadId, exists := oai.ThreadIds[contextID]; exists {
+		return threadId, nil
 	}
-	return nil
+
+	threadId, err := oai.CreateThread()
+
+	if err != nil {
+		return "", err
+	}
+
+	oai.ThreadIds[contextID] = threadId
+
+	return threadId, nil
 }
 
-func (oai *OpenAIService) GetThreadId() (string, error) {
-	return oai.ThreadId, nil
+func (oai *OpenAIService) GetThreadId(contextID string) string {
+	return oai.ThreadIds[contextID]
 }
 
 func (oai *OpenAIService) CreateThread() (string, error) {
-	t, err := oai.ThreadClient.New(context.Background(), openai.BetaThreadNewParams{}, opts...)
+	t, err := oai.ThreadClient.New(context.Background(), openai.BetaThreadNewParams{}, oai.Options...)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to create thread %v", err)
@@ -64,13 +77,13 @@ func (oai *OpenAIService) CreateThread() (string, error) {
 
 	return t.ID, nil
 }
-func (oai *OpenAIService) CreateMessage(message string) (openai.Message, error) {
-	msg, err := oai.ThreadClient.Messages.New(context.Background(), oai.ThreadId, openai.BetaThreadMessageNewParams{
+func (oai *OpenAIService) CreateMessage(message string, threadId string) (openai.Message, error) {
+	msg, err := oai.ThreadClient.Messages.New(context.Background(), threadId, openai.BetaThreadMessageNewParams{
 		Role: "user",
 		Content: openai.BetaThreadMessageNewParamsContentUnion{
 			OfString: param.NewOpt(message),
 		},
-	}, opts...)
+	}, oai.Options...)
 
 	if err != nil {
 		return openai.Message{}, fmt.Errorf("failed to create message  %v", err)
@@ -80,8 +93,8 @@ func (oai *OpenAIService) CreateMessage(message string) (openai.Message, error) 
 
 func (oai *OpenAIService) CreateRun(threadId string) (openai.Run, error) {
 	run, err := oai.ThreadClient.Runs.New(context.Background(), threadId, openai.BetaThreadRunNewParams{
-		AssistantID: os.Getenv("ASSISTANT_ID"),
-	}, opts...)
+		AssistantID: oai.Config.AssistantID,
+	}, oai.Options...)
 
 	if err != nil {
 		return openai.Run{}, fmt.Errorf("failed to create run %v", err)
@@ -92,7 +105,7 @@ func (oai *OpenAIService) CreateRun(threadId string) (openai.Run, error) {
 
 func (oai *OpenAIService) GetResponse(run openai.Run, messageId string) (string, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), oai.Config.Timeout)
 
 	defer cancel()
 
@@ -101,9 +114,9 @@ func (oai *OpenAIService) GetResponse(run openai.Run, messageId string) (string,
 	for !done {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("operation timed out")
+			return "", fmt.Errorf("operation timed out after 60 seconds")
 		default:
-			resp, err := oai.ThreadClient.Runs.Get(ctx, run.ThreadID, run.ID, opts...)
+			resp, err := oai.ThreadClient.Runs.Get(ctx, run.ThreadID, run.ID, oai.Options...)
 
 			if err != nil {
 				return "", fmt.Errorf("failed to retrieve run info %v", err)
@@ -114,31 +127,19 @@ func (oai *OpenAIService) GetResponse(run openai.Run, messageId string) (string,
 				time.Sleep(5 * time.Second)
 				continue
 			case openai.RunStatusCompleted:
-				done = true
+				return oai.getCompletedResponse(ctx, run.ThreadID, messageId)
 			case openai.RunStatusFailed:
 			case openai.RunStatusCancelled:
 			case openai.RunStatusRequiresAction:
 			default:
 				return "", fmt.Errorf("failed to get run status with status %s", resp.Status)
 			}
-
-			messages, err := oai.ThreadClient.Messages.List(ctx, run.ThreadID, openai.BetaThreadMessageListParams{Before: param.NewOpt(messageId)}, opts...)
-
-			if err != nil {
-				return "", fmt.Errorf("failed to list messages %v", err)
-			}
-
-			if !validateResponse(messages) {
-				return "", fmt.Errorf("failed to validate response")
-			}
-
-			return CleanResponse(messages.Data[0].Content[0].Text.Value), nil
 		}
 	}
 	return "", fmt.Errorf("something went wrong")
 }
 
-func CleanResponse(s string) string {
+func cleanResponse(s string) string {
 	cleaned := strings.TrimSpace(s)
 	cleaned = strings.ReplaceAll(cleaned, "\n\n", "\n")
 	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
@@ -161,4 +162,18 @@ func validateResponse(response *pagination.CursorPage[openai.Message]) bool {
 	}
 
 	return true
+}
+
+func (oai *OpenAIService) getCompletedResponse(ctx context.Context, threadId string, messageId string) (string, error) {
+	messages, err := oai.ThreadClient.Messages.List(ctx, threadId, openai.BetaThreadMessageListParams{Before: param.NewOpt(messageId)}, oai.Options...)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to list messages %v", err)
+	}
+
+	if !validateResponse(messages) {
+		return "", fmt.Errorf("failed to validate response")
+	}
+
+	return cleanResponse(messages.Data[0].Content[0].Text.Value), nil
 }
