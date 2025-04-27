@@ -24,6 +24,11 @@ type OpenAIConfig struct {
 type Config struct {
 	OpenAI  *OpenAIConfig  `json:"openai"`
 	GroupMe *GroupMeConfig `json:"groupme"`
+	Auth    *AuthConfig    `json:"auth"`
+}
+
+type AuthConfig struct {
+	APIKey string `json:"api_key"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -39,9 +44,16 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	authConfig, err := loadAuthConfig()
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		OpenAI:  openAIConfig,
 		GroupMe: groupMeConfig,
+		Auth:    authConfig,
 	}, nil
 }
 
@@ -85,5 +97,17 @@ func loadGroupMeConfig() (*GroupMeConfig, error) {
 		Timeout: 20 * time.Second,
 		Host:    "api.groupme.com",
 		Path:    "/v3/bots/post",
+	}, nil
+}
+
+func loadAuthConfig() (*AuthConfig, error) {
+	APIKey := os.Getenv("API_KEY")
+
+	if APIKey == "" {
+		return nil, fmt.Errorf("API_KEY environment variable is not set")
+	}
+
+	return &AuthConfig{
+		APIKey: APIKey,
 	}, nil
 }

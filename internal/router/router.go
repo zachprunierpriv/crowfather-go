@@ -1,6 +1,7 @@
 package router
 
 import (
+	"crowfather/internal/config"
 	"crowfather/internal/groupme"
 	"crowfather/internal/handlers/message_handler"
 	"crowfather/internal/handlers/test_handler"
@@ -14,9 +15,10 @@ type Router struct {
 	gms            *groupme.GroupMeService
 	messageHandler func(groupme.Message, *open_ai.OpenAIService, *groupme.GroupMeService) (string, error)
 	testHandler    func(string, *open_ai.OpenAIService) (string, error)
+	config         *config.AuthConfig
 }
 
-func NewRouter(oai *open_ai.OpenAIService, gms *groupme.GroupMeService) (*Router, error) {
+func NewRouter(oai *open_ai.OpenAIService, gms *groupme.GroupMeService, config *config.AuthConfig) (*Router, error) {
 	messageHandler := message_handler.Handle
 	testHandler := test_handler.Handle
 
@@ -25,13 +27,17 @@ func NewRouter(oai *open_ai.OpenAIService, gms *groupme.GroupMeService) (*Router
 		testHandler:    testHandler,
 		oai:            oai,
 		gms:            gms,
+		config:         config,
 	}, nil
 }
 
 func (r *Router) RegisterRoutes(engine *gin.Engine) {
 	engine.GET("/ping", r.handlePing)
 	engine.POST("/message", r.processGroupMeMessage)
-	engine.POST("/test", r.processTestMessage)
+
+	base := engine.Group("/")
+	base.Use(AuthMiddleware(r.config.APIKey))
+	base.POST("/test", r.processTestMessage)
 }
 
 func (r *Router) handlePing(c *gin.Context) {
@@ -81,4 +87,24 @@ func (r *Router) processTestMessage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"response": response,
 	})
+}
+
+func AuthMiddleware(apiKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := c.GetHeader("Authorization")
+
+		if key == "" {
+			key = c.Query("api_key")
+		}
+
+		if key == "" || key != apiKey {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "unauthorized",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"crowfather/internal/groupme"
 	"crowfather/internal/open_ai"
 	"crowfather/internal/router"
+	"fmt"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,12 +14,13 @@ func main() {
 	config, err := config.LoadConfig()
 
 	if err != nil {
+		fmt.Println("Failed to load config %v", err)
 		return
 	}
 
 	oai := open_ai.NewOpenAIService(config.OpenAI)
 	gms := groupme.NewGroupMeService(config.GroupMe)
-	router, err := router.NewRouter(oai, gms)
+	router, err := router.NewRouter(oai, gms, config.Auth)
 
 	if err != nil {
 		return
