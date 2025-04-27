@@ -3,20 +3,21 @@ package groupme
 import (
 	"bytes"
 	"context"
+	"crowfather/internal/config"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 )
 
 type GroupMeService struct {
 	Client *http.Client
+	Config *config.GroupMeConfig
 }
 
-func NewGroupMeService() *GroupMeService {
+func NewGroupMeService(config *config.GroupMeConfig) *GroupMeService {
 	return &GroupMeService{
 		Client: &http.Client{
 			Timeout: 20 * time.Second,
@@ -24,56 +25,75 @@ func NewGroupMeService() *GroupMeService {
 				MaxIdleConns: 10,
 			},
 		},
+		Config: config,
 	}
 }
 
 func (g *GroupMeService) SendMessage(message Message, response string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), g.Config.Timeout)
 
 	defer cancel()
 
-	url := url.URL{
-		Scheme: "https",
-		Host:   "api.groupme.com",
-		Path:   "/v3/bots/post",
-	}
-
-	msg := fmt.Sprintf("@%s %s", message.Name, response)
-
-	messageSendRequest := MessageSendRequest{
-		BotId: os.Getenv("GROUPME_BOT_ID"),
-		Text:  msg,
-	}
-
-	reqBody, err := json.Marshal(messageSendRequest)
+	reqBody, err := g.buildPayload(message, response)
 
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal request body %v", err)
+		return false, fmt.Errorf("failed to build request body %v", err)
 	}
 
+	request := g.buildRequest(ctx, reqBody)
+
+	resp, err := g.sendRequest(request)
+
+	if err != nil || !resp {
+		return false, fmt.Errorf("failed to send message %v", err)
+	}
+
+	return true, nil
+}
+
+func (g *GroupMeService) buildUrl() *url.URL {
+	return &url.URL{
+		Scheme: "https",
+		Host:   g.Config.Host,
+		Path:   g.Config.Path,
+	}
+}
+
+func (g *GroupMeService) buildPayload(message Message, response string) ([]byte, error) {
+	return json.Marshal(MessageSendRequest{
+		BotId: g.Config.BotID,
+		Text:  fmt.Sprintf("@%s %s", message.Name, response),
+	})
+}
+
+func (g *GroupMeService) buildRequest(ctx context.Context, payload []byte) *http.Request {
 	params := &http.Request{
 		Header: map[string][]string{
 			"Content-Type":  {"application/json"},
-			"Authorization": {os.Getenv("GROUPME_BOT_TOKEN")},
+			"Authorization": {g.Config.Token},
 		},
-		Body:   io.NopCloser(bytes.NewReader(reqBody)),
+		Body:   io.NopCloser(bytes.NewReader(payload)),
 		Method: "POST",
-		URL:    &url,
+		URL:    g.buildUrl(),
 	}
 
 	params = params.WithContext(ctx)
 
-	resp, err := g.Client.Do(params)
+	return params
+}
+
+func (g *GroupMeService) sendRequest(req *http.Request) (bool, error) {
+	resp, err := g.Client.Do(req)
 
 	if err != nil {
-		return false, fmt.Errorf("failed to send message %v", err)
+		return false, fmt.Errorf("failed to send request %v", err)
 	}
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 202 {
+	if resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body)
-		return false, fmt.Errorf("failed to send message %d, %s", resp.StatusCode, body)
+		return false, fmt.Errorf("failed to send request status=%d, body=%s", resp.StatusCode, body)
 	}
 
 	return true, nil
