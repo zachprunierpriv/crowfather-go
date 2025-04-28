@@ -4,11 +4,12 @@ import (
 	"crowfather/internal/groupme"
 	"crowfather/internal/open_ai"
 	"fmt"
+	"github.com/openai/openai-go"
 	"math/rand"
 	"strings"
 )
 
-func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.GroupMeService) (string, error) {
+func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.GroupMeService, assistantID string) (string, error) {
 	err := validateMessage(message)
 
 	if err != nil {
@@ -16,7 +17,7 @@ func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.Gr
 	}
 
 	message.Text = cleanMessage(message.Text)
-	resp, err := processMessage(message, oai)
+	resp, err := processMessage(message, oai, assistantID)
 
 	if err != nil || resp == "" {
 		return "", err
@@ -31,6 +32,52 @@ func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.Gr
 	}
 
 	return "", nil
+}
+
+func processMessage(message groupme.Message, oai *open_ai.OpenAIService, assistantID string) (string, error) {
+	lowercasedMessage := strings.ToLower(message.Text)
+
+	msg, err := addMessageToThread(message, oai)
+
+	if err != nil {
+		return "", err
+	}
+
+	if strings.Contains(lowercasedMessage, "hey crowfather") || shouldAttackRandomly() {
+		return respondToThread(msg, oai, assistantID)
+	}
+	return "", nil
+}
+
+func addMessageToThread(message groupme.Message, oai *open_ai.OpenAIService) (openai.Message, error) {
+	threadId, err := oai.GetOrCreateThread(message.GroupId)
+
+	if err != nil {
+		return openai.Message{}, err
+	}
+
+	msg, err := oai.CreateMessage(message.Text, threadId)
+
+	if err != nil {
+		return openai.Message{}, err
+	}
+	return msg, nil
+}
+
+func respondToThread(message openai.Message, oai *open_ai.OpenAIService, assistantID string) (string, error) {
+	run, err := oai.CreateRun(message.ThreadID, assistantID)
+
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := oai.GetResponse(run, message.ID)
+
+	if err != nil {
+		return "", err
+	}
+
+	return resp, nil
 }
 
 func validateMessage(message groupme.Message) error {
@@ -54,37 +101,4 @@ func cleanMessage(message string) string {
 	cleanedMessage = strings.TrimSpace(cleanedMessage)
 
 	return cleanedMessage
-}
-
-func processMessage(message groupme.Message, oai *open_ai.OpenAIService) (string, error) {
-	threadId, err := oai.GetOrCreateThread(message.GroupId)
-	lowercasedMessage := strings.ToLower(message.Text)
-
-	if err != nil {
-		return "", err
-	}
-
-	msg, err := oai.CreateMessage(message.Text, threadId)
-
-	if err != nil {
-		return "", err
-	}
-
-	if strings.Contains(lowercasedMessage, "hey crowfather") || shouldAttackRandomly() {
-
-		run, err := oai.CreateRun(msg.ThreadID)
-
-		if err != nil {
-			return "", err
-		}
-
-		resp, err := oai.GetResponse(run, msg.ID)
-
-		if err != nil {
-			return "", err
-		}
-
-		return resp, nil
-	}
-	return "", nil
 }

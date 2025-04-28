@@ -14,17 +14,28 @@ type GroupMeConfig struct {
 	Path    string        `json:"path"`
 }
 
-type OpenAIConfig struct {
-	APIKey      string        `json:"api_key"`
-	BaseURL     string        `json:"base_url"`
-	AssistantID string        `json:"assistant_id"`
+type Assistants struct {
+	GroupMeAssistantID  string `json:"groupme_assistant_id"`
+	MeltdownAssistantID string `json:"meltdown_assistant_id"`
+	TestAssistantID     string `json:"test_assistant_id"`
+}
+
+type MeltdownConfig struct {
 	Timeout     time.Duration `json:"timeout"`
+	AssistantID string        `json:"assistant_id"`
+}
+
+type OpenAIConfig struct {
+	APIKey  string        `json:"api_key"`
+	BaseURL string        `json:"base_url"`
+	Timeout time.Duration `json:"timeout"`
 }
 
 type Config struct {
-	OpenAI  *OpenAIConfig  `json:"openai"`
-	GroupMe *GroupMeConfig `json:"groupme"`
-	Auth    *AuthConfig    `json:"auth"`
+	OpenAI     *OpenAIConfig  `json:"openai"`
+	GroupMe    *GroupMeConfig `json:"groupme"`
+	Auth       *AuthConfig    `json:"auth"`
+	Assistants *Assistants    `json:"assistants"`
 }
 
 type AuthConfig struct {
@@ -49,11 +60,17 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	assistants, err := loadAssistants()
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &Config{
-		OpenAI:  openAIConfig,
-		GroupMe: groupMeConfig,
-		Auth:    authConfig,
+		OpenAI:     openAIConfig,
+		GroupMe:    groupMeConfig,
+		Auth:       authConfig,
+		Assistants: assistants,
 	}, nil
 }
 
@@ -71,10 +88,9 @@ func loadOpenAIConfig() (*OpenAIConfig, error) {
 	}
 
 	return &OpenAIConfig{
-		APIKey:      APIKey,
-		BaseURL:     "https://api.openai.com/v1",
-		AssistantID: AssistantID,
-		Timeout:     60 * time.Second,
+		APIKey:  APIKey,
+		BaseURL: "https://api.openai.com/v1",
+		Timeout: 60 * time.Second,
 	}, nil
 }
 
@@ -109,5 +125,31 @@ func loadAuthConfig() (*AuthConfig, error) {
 
 	return &AuthConfig{
 		APIKey: APIKey,
+	}, nil
+}
+
+func loadAssistants() (*Assistants, error) {
+	GroupMeAssistantID := os.Getenv("GROUPME_ASSISTANT_ID")
+
+	if GroupMeAssistantID == "" {
+		return nil, fmt.Errorf("GROUPME_ASSISTANT_ID environment variable is not set")
+	}
+
+	MeltdownAssistantID := os.Getenv("MELTDOWN_ASSISTANT_ID")
+
+	if MeltdownAssistantID == "" {
+		return nil, fmt.Errorf("MELTDOWN_ASSISTANT_ID environment variable is not set")
+	}
+
+	TestAssistantID := os.Getenv("TEST_ASSISTANT_ID")
+
+	if TestAssistantID == "" {
+		return nil, fmt.Errorf("TEST_ASSISTANT_ID environment variable is not set")
+	}
+
+	return &Assistants{
+		GroupMeAssistantID:  GroupMeAssistantID,
+		MeltdownAssistantID: MeltdownAssistantID,
+		TestAssistantID:     TestAssistantID,
 	}, nil
 }

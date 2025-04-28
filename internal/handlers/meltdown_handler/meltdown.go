@@ -1,4 +1,4 @@
-package test_handler
+package meltdown_handler
 
 import (
 	"crowfather/internal/open_ai"
@@ -15,7 +15,7 @@ func Handle(message string, oai *open_ai.OpenAIService, assistantID string) (str
 }
 
 func processMessage(message string, oai *open_ai.OpenAIService, assistantID string) (string, error) {
-	threadId, err := oai.GetOrCreateThread("temp")
+	threadId, err := oai.GetOrCreateThread("meltdown")
 
 	if err != nil {
 		return "", err

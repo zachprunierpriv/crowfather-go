@@ -91,9 +91,9 @@ func (oai *OpenAIService) CreateMessage(message string, threadId string) (openai
 	return *msg, nil
 }
 
-func (oai *OpenAIService) CreateRun(threadId string) (openai.Run, error) {
+func (oai *OpenAIService) CreateRun(threadId string, assistantID string) (openai.Run, error) {
 	run, err := oai.ThreadClient.Runs.New(context.Background(), threadId, openai.BetaThreadRunNewParams{
-		AssistantID: oai.Config.AssistantID,
+		AssistantID: assistantID,
 	}, oai.Options...)
 
 	if err != nil {
@@ -172,7 +172,7 @@ func (oai *OpenAIService) getCompletedResponse(ctx context.Context, threadId str
 	}
 
 	if !validateResponse(messages) {
-		return "", fmt.Errorf("iled to validate response")
+		return "", fmt.Errorf("failed to validate response")
 	}
 
 	return cleanResponse(messages.Data[0].Content[0].Text.Value), nil
