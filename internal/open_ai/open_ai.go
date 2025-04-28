@@ -24,7 +24,7 @@ type OpenAIService struct {
 	ThreadIds    map[string]string
 	Config       *config.OpenAIConfig
 	Options      []option.RequestOption
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
@@ -46,8 +46,8 @@ func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
 }
 
 func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
-	oai.mu.Lock()
-	defer oai.mu.Unlock()
+	oai.mu.RLock()
+	defer oai.mu.RUnlock()
 
 	if threadId, exists := oai.ThreadIds[contextID]; exists {
 		return threadId, nil
@@ -174,6 +174,20 @@ func (oai *OpenAIService) getCompletedResponse(ctx context.Context, threadId str
 	if !validateResponse(messages) {
 		return "", fmt.Errorf("failed to validate response")
 	}
+	assistantMessage, err := oai.GetAssitantMessage(messages.Data)
 
-	return cleanResponse(messages.Data[0].Content[0].Text.Value), nil
+	if err != nil {
+		return "", err
+	}
+
+	return cleanResponse(assistantMessage.Content[0].Text.Value), nil
+}
+
+func (oai *OpenAIService) GetAssitantMessage(messages []openai.Message) (openai.Message, error) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "assistant" {
+			return messages[i], nil
+		}
+	}
+	return openai.Message{}, fmt.Errorf("no assistant message found")
 }
