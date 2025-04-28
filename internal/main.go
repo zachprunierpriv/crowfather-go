@@ -20,7 +20,7 @@ func main() {
 
 	oai := open_ai.NewOpenAIService(config.OpenAI)
 	gms := groupme.NewGroupMeService(config.GroupMe)
-	router, err := router.NewRouter(oai, gms, config.Auth)
+	router, err := router.NewRouter(oai, gms, config)
 
 	if err != nil {
 		return
