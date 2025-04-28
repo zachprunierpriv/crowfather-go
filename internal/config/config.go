@@ -20,11 +20,6 @@ type Assistants struct {
 	TestAssistantID     string `json:"test_assistant_id"`
 }
 
-type MeltdownConfig struct {
-	Timeout     time.Duration `json:"timeout"`
-	AssistantID string        `json:"assistant_id"`
-}
-
 type OpenAIConfig struct {
 	APIKey  string        `json:"api_key"`
 	BaseURL string        `json:"base_url"`
@@ -79,12 +74,6 @@ func loadOpenAIConfig() (*OpenAIConfig, error) {
 
 	if APIKey == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY environment variable is not set")
-	}
-
-	AssistantID := os.Getenv("ASSISTANT_ID")
-
-	if AssistantID == "" {
-		return nil, fmt.Errorf("ASSISTANT_ID environment variable is not set")
 	}
 
 	return &OpenAIConfig{
