@@ -46,8 +46,8 @@ func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
 }
 
 func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
-	oai.mu.RLock()
-	defer oai.mu.RUnlock()
+	oai.mu.Lock()
+	defer oai.mu.Unlock()
 
 	if threadId, exists := oai.ThreadIds[contextID]; exists {
 		return threadId, nil
@@ -129,6 +129,7 @@ func (oai *OpenAIService) GetResponse(run openai.Run, messageId string) (string,
 			case openai.RunStatusCompleted:
 				return oai.getCompletedResponse(ctx, run.ThreadID, messageId)
 			case openai.RunStatusFailed:
+				return "", fmt.Errorf("Run failed")
 			case openai.RunStatusCancelled:
 			case openai.RunStatusRequiresAction:
 			default:
