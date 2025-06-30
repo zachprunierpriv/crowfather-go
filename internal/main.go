@@ -2,6 +2,7 @@ package main
 
 import (
 	"crowfather/internal/config"
+	"crowfather/internal/database"
 	"crowfather/internal/groupme"
 	"crowfather/internal/open_ai"
 	"crowfather/internal/router"
@@ -10,7 +11,11 @@ import (
 )
 
 func main() {
-	//db := database.ConnectDb();
+	db, err := database.ConnectDb()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	config, err := config.LoadConfig()
 
 	if err != nil {
@@ -18,7 +23,7 @@ func main() {
 		return
 	}
 
-	oai := open_ai.NewOpenAIService(config.OpenAI)
+	oai := open_ai.NewOpenAIService(config.OpenAI, db)
 	gms := groupme.NewGroupMeService(config.GroupMe)
 	router, err := router.NewRouter(oai, gms, config)
 

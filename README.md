@@ -36,15 +36,19 @@ GROUPME_ASSISTANT_ID    OpenAI assistant ID for group messages
 MELTDOWN_ASSISTANT_ID   OpenAI assistant ID for meltdown messages
 TEST_ASSISTANT_ID       OpenAI assistant ID for test messages
 API_KEY                 simple API key used by the test route
+DB_USER                 database username
+DB_PASS                 database password
+DB_HOST                 database host
+DB_NAME                 database name
 ```
 
 Set these variables before running the server with `go run ./internal`.
 
 ## Running Tests
 
-Unit tests cover the configuration loader and the GroupMe client.  Execute them with:
+Unit tests cover the configuration loader, the GroupMe client and the database layer. Execute them with:
 
 ```
-go test ./internal/config ./internal/groupme
+go test ./...
 ```
 
