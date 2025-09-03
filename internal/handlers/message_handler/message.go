@@ -5,7 +5,6 @@ import (
 	"crowfather/internal/open_ai"
 	"fmt"
 	"github.com/openai/openai-go"
-	"math/rand"
 	"strings"
 )
 
