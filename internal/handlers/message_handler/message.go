@@ -43,7 +43,7 @@ func processMessage(message groupme.Message, oai *open_ai.OpenAIService, assista
 		return "", err
 	}
 
-	if strings.Contains(lowercasedMessage, "hey crowfather") || shouldAttackRandomly() {
+	if strings.Contains(lowercasedMessage, "hey crowfather") {
 		return respondToThread(msg, oai, assistantID)
 	}
 	return "", nil
@@ -88,12 +88,12 @@ func validateMessage(message groupme.Message) error {
 	return nil
 }
 
-func shouldAttackRandomly() bool {
-	firstRand := rand.Intn(20)
-	secondRand := rand.Intn(20)
+// func shouldAttackRandomly() bool {
+// 	firstRand := rand.Intn(20)
+// 	secondRand := rand.Intn(20)
 
-	return firstRand == secondRand
-}
+// 	return firstRand == secondRand
+// }
 
 func cleanMessage(message string) string {
 	cleanedMessage := strings.TrimPrefix(message, "hey crowfather")
