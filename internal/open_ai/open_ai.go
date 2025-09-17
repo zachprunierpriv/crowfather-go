@@ -3,6 +3,7 @@ package open_ai
 import (
 	"context"
 	"crowfather/internal/config"
+	"crowfather/internal/database"
 	"fmt"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -24,10 +25,11 @@ type OpenAIService struct {
 	ThreadIds    map[string]string
 	Config       *config.OpenAIConfig
 	Options      []option.RequestOption
+	DB           *database.DatabaseService
 	mu           sync.RWMutex
 }
 
-func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
+func NewOpenAIService(config *config.OpenAIConfig, db *database.DatabaseService) *OpenAIService {
 	var opts = []option.RequestOption{
 		option.WithAPIKey(config.APIKey),
 		option.WithBaseURL(config.BaseURL),
@@ -42,6 +44,7 @@ func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
 		Config:       config,
 		Options:      opts,
 		ThreadIds:    make(map[string]string),
+		DB:           db,
 	}
 }
 
@@ -53,6 +56,13 @@ func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
 		return threadId, nil
 	}
 
+	if oai.DB != nil {
+		if id, err := oai.DB.GetThread(contextID); err == nil && id != "" {
+			oai.ThreadIds[contextID] = id
+			return id, nil
+		}
+	}
+
 	threadId, err := oai.CreateThread()
 
 	if err != nil {
@@ -60,6 +70,9 @@ func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
 	}
 
 	oai.ThreadIds[contextID] = threadId
+	if oai.DB != nil {
+		_ = oai.DB.SaveThread(contextID, threadId)
+	}
 
 	return threadId, nil
 }
@@ -87,6 +100,9 @@ func (oai *OpenAIService) CreateMessage(message string, threadId string) (openai
 
 	if err != nil {
 		return openai.Message{}, fmt.Errorf("failed to create message  %v", err)
+	}
+	if oai.DB != nil {
+		_ = oai.DB.SaveMessage(threadId, "user", msg.ID, message)
 	}
 	return *msg, nil
 }
@@ -181,7 +197,12 @@ func (oai *OpenAIService) getCompletedResponse(ctx context.Context, threadId str
 		return "", err
 	}
 
-	return cleanResponse(assistantMessage.Content[0].Text.Value), nil
+	cleaned := cleanResponse(assistantMessage.Content[0].Text.Value)
+	if oai.DB != nil {
+		_ = oai.DB.SaveMessage(threadId, "assistant", assistantMessage.ID, cleaned)
+	}
+
+	return cleaned, nil
 }
 
 func (oai *OpenAIService) GetAssitantMessage(messages []openai.Message) (openai.Message, error) {
