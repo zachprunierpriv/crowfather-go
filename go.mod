@@ -6,6 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/gin-gonic/gin v1.10.0
+	github.com/lib/pq v1.11.2
 	github.com/openai/openai-go v0.1.0-beta.10
 	github.com/stretchr/testify v1.11.1
 )

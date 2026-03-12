@@ -61,6 +61,7 @@ func newTestService(t *testing.T, baseURL string) *OpenAIService {
 		Config:       &config.OpenAIConfig{Timeout: 500 * time.Millisecond},
 		Options:      opts,
 		ThreadIds:    make(map[string]string),
+		Repo:         nil,
 	}
 }
 
