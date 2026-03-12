@@ -95,9 +95,12 @@ func validateMessage(message groupme.Message) error {
 // }
 
 func cleanMessage(message string) string {
-	cleanedMessage := strings.TrimPrefix(message, "hey crowfather")
-	cleanedMessage = strings.TrimPrefix(cleanedMessage, ",")
-	cleanedMessage = strings.TrimSpace(cleanedMessage)
-
-	return cleanedMessage
+	const prefix = "hey crowfather"
+	if strings.HasPrefix(strings.ToLower(message), prefix) {
+		message = message[len(prefix):]
+	}
+	message = strings.TrimSpace(message)
+	message = strings.TrimPrefix(message, ",")
+	message = strings.TrimSpace(message)
+	return message
 }

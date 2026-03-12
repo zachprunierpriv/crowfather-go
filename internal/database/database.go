@@ -15,11 +15,11 @@ func ConnectDb() *DatabaseService {
 	db, err := sql.Open("postgres", connStr)
 
 	if err != nil {
-		fmt.Println("Failed to connect to database instance %v", err)
+		fmt.Printf("Failed to connect to database instance %v\n", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		fmt.Println("Failed to connect to database instance %v", err)
+		fmt.Printf("Failed to connect to database instance %v\n", err)
 	}
 
 	return &DatabaseService{db: db}
