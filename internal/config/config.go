@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,14 +29,24 @@ type OpenAIConfig struct {
 }
 
 type Config struct {
-	OpenAI     *OpenAIConfig  `json:"openai"`
-	GroupMe    *GroupMeConfig `json:"groupme"`
-	Auth       *AuthConfig    `json:"auth"`
-	Assistants *Assistants    `json:"assistants"`
+	OpenAI     *OpenAIConfig     `json:"openai"`
+	GroupMe    *GroupMeConfig    `json:"groupme"`
+	Auth       *AuthConfig       `json:"auth"`
+	Assistants *Assistants       `json:"assistants"`
+	Reconciler *ReconcilerConfig `json:"reconciler"` // nil if not configured
 }
 
 type AuthConfig struct {
 	APIKey string `json:"api_key"`
+}
+
+type ReconcilerConfig struct {
+	LeagueIDs         []string      // SLEEPER_LEAGUE_IDS (comma-separated)
+	OnStartup         bool          // RECONCILE_ON_STARTUP (default true)
+	Interval          time.Duration // RECONCILE_INTERVAL_HOURS (default 168h)
+	CooldownMinutes   time.Duration // RECONCILE_COOLDOWN_MINUTES (default 30m)
+	ApprovedUsers     []string      // RECONCILE_APPROVED_USERS (comma-separated GroupMe user_ids)
+	TransactionRounds int           // RECONCILE_TRANSACTION_ROUNDS (default 2)
 }
 
 func LoadConfig() (*Config, error) {
@@ -61,11 +73,14 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	reconcilerConfig := loadReconcilerConfig()
+
 	return &Config{
 		OpenAI:     openAIConfig,
 		GroupMe:    groupMeConfig,
 		Auth:       authConfig,
 		Assistants: assistants,
+		Reconciler: reconcilerConfig,
 	}, nil
 }
 
@@ -141,4 +156,69 @@ func loadAssistants() (*Assistants, error) {
 		MeltdownAssistantID: MeltdownAssistantID,
 		TestAssistantID:     TestAssistantID,
 	}, nil
+}
+
+// loadReconcilerConfig loads optional reconciler settings. Returns nil if no
+// league IDs are configured, which disables the reconciler entirely.
+func loadReconcilerConfig() *ReconcilerConfig {
+	leagueIDsRaw := os.Getenv("SLEEPER_LEAGUE_IDS")
+	if leagueIDsRaw == "" {
+		return nil
+	}
+
+	leagueIDs := splitTrimmed(leagueIDsRaw)
+	if len(leagueIDs) == 0 {
+		return nil
+	}
+
+	onStartup := true
+	if v := os.Getenv("RECONCILE_ON_STARTUP"); v == "false" {
+		onStartup = false
+	}
+
+	intervalHours := 168
+	if v := os.Getenv("RECONCILE_INTERVAL_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			intervalHours = n
+		}
+	}
+
+	cooldownMinutes := 30
+	if v := os.Getenv("RECONCILE_COOLDOWN_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cooldownMinutes = n
+		}
+	}
+
+	transactionRounds := 2
+	if v := os.Getenv("RECONCILE_TRANSACTION_ROUNDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			transactionRounds = n
+		}
+	}
+
+	var approvedUsers []string
+	if v := os.Getenv("RECONCILE_APPROVED_USERS"); v != "" {
+		approvedUsers = splitTrimmed(v)
+	}
+
+	return &ReconcilerConfig{
+		LeagueIDs:         leagueIDs,
+		OnStartup:         onStartup,
+		Interval:          time.Duration(intervalHours) * time.Hour,
+		CooldownMinutes:   time.Duration(cooldownMinutes) * time.Minute,
+		ApprovedUsers:     approvedUsers,
+		TransactionRounds: transactionRounds,
+	}
+}
+
+func splitTrimmed(s string) []string {
+	parts := strings.Split(s, ",")
+	var out []string
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
