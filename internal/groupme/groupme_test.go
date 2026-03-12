@@ -79,3 +79,45 @@ func TestSendRequestFailure(t *testing.T) {
 		t.Fatalf("expected failure")
 	}
 }
+
+func TestSendRawMessage_Success(t *testing.T) {
+	var gotBody MessageSendRequest
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	svc := &GroupMeService{
+		Client: server.Client(),
+		Config: &config.GroupMeConfig{BotID: "bot123", Host: u.Host, Path: u.Path, Timeout: 5 * 1000000000},
+	}
+
+	if err := svc.SendRawMessage("Hello, league!"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotBody.BotId != "bot123" {
+		t.Errorf("expected bot_id=bot123, got %q", gotBody.BotId)
+	}
+	if gotBody.Text != "Hello, league!" {
+		t.Errorf("expected text without @mention, got %q", gotBody.Text)
+	}
+}
+
+func TestSendRawMessage_Failure(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	svc := &GroupMeService{
+		Client: server.Client(),
+		Config: &config.GroupMeConfig{Host: u.Host, Path: u.Path, Timeout: 5 * 1000000000},
+	}
+
+	if err := svc.SendRawMessage("test"); err == nil {
+		t.Fatal("expected error on non-202 response")
+	}
+}

@@ -59,6 +59,28 @@ func (g *GroupMeService) buildUrl() *url.URL {
 	}
 }
 
+// SendRawMessage sends text to the GroupMe group without an @mention prefix.
+// Used for bot-initiated messages such as reconciliation completion summaries.
+func (g *GroupMeService) SendRawMessage(text string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), g.Config.Timeout)
+	defer cancel()
+
+	payload, err := json.Marshal(MessageSendRequest{
+		BotId: g.Config.BotID,
+		Text:  text,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to build raw message payload: %w", err)
+	}
+
+	request := g.buildRequest(ctx, payload)
+	ok, err := g.sendRequest(request)
+	if err != nil || !ok {
+		return fmt.Errorf("failed to send raw message: %w", err)
+	}
+	return nil
+}
+
 func (g *GroupMeService) buildPayload(message Message, response string) ([]byte, error) {
 	return json.Marshal(MessageSendRequest{
 		BotId: g.Config.BotID,
