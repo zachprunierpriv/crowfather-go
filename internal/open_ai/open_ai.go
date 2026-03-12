@@ -65,6 +65,8 @@ func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
 }
 
 func (oai *OpenAIService) GetThreadId(contextID string) string {
+	oai.mu.RLock()
+	defer oai.mu.RUnlock()
 	return oai.ThreadIds[contextID]
 }
 
@@ -131,7 +133,9 @@ func (oai *OpenAIService) GetResponse(run openai.Run, messageId string) (string,
 			case openai.RunStatusFailed:
 				return "", fmt.Errorf("Run failed")
 			case openai.RunStatusCancelled:
+				return "", fmt.Errorf("run was cancelled")
 			case openai.RunStatusRequiresAction:
+				return "", fmt.Errorf("run requires action (tool calls not implemented)")
 			default:
 				return "", fmt.Errorf("failed to get run status with status %s", resp.Status)
 			}
