@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func rosterJSON(teamID, teamName string, athletes []Athlete) string {
-	positions := []Position{{Position: "QB", Items: athletes}}
+func rosterJSON(teamID, teamName string, athletes []rawAthlete) string {
+	positions := []rawPosition{{Position: "offense", Items: athletes}}
 	resp := RosterResponse{
 		Team: Team{
 			TeamID:          teamID,
@@ -34,12 +34,11 @@ func TestFetchAllTeamRosters_ReturnsValidTeams(t *testing.T) {
 		fmt.Sscanf(r.URL.Path, "/%d", &teamID)
 		if teamID == 1 {
 			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, rosterJSON("1", "Kansas City Chiefs", []Athlete{
-				{AthleteID: "1", DisplayName: "Patrick Mahomes", Position: "QB"},
+			fmt.Fprint(w, rosterJSON("1", "Kansas City Chiefs", []rawAthlete{
+				{AthleteID: "1", DisplayName: "Patrick Mahomes", Position: rawAthletePosition{Abbreviation: "QB"}},
 			}))
 			return
 		}
-		// All other team IDs return 404 (simulates non-existent teams).
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
@@ -91,7 +90,7 @@ func TestFetchAllTeamRosters_AllFailReturnsError(t *testing.T) {
 }
 
 func TestFetchAllTeamRosters_PositionTaggedOnAthletes(t *testing.T) {
-	// Verifies that the position from the Position group is set on each Athlete.
+	// Verifies that each athlete's individual position abbreviation is preserved.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var id int
 		fmt.Sscanf(r.URL.Path, "/%d", &id)
@@ -101,9 +100,13 @@ func TestFetchAllTeamRosters_PositionTaggedOnAthletes(t *testing.T) {
 		}
 		resp := RosterResponse{
 			Team: Team{TeamID: "1", Name: "Chiefs"},
-			Athletes: []Position{
-				{Position: "QB", Items: []Athlete{{AthleteID: "10", DisplayName: "Mahomes"}}},
-				{Position: "WR", Items: []Athlete{{AthleteID: "11", DisplayName: "Rice"}}},
+			Athletes: []rawPosition{
+				{Position: "offense", Items: []rawAthlete{
+					{AthleteID: "10", DisplayName: "Mahomes", Position: rawAthletePosition{Abbreviation: "QB"}},
+				}},
+				{Position: "offense", Items: []rawAthlete{
+					{AthleteID: "11", DisplayName: "Rice", Position: rawAthletePosition{Abbreviation: "WR"}},
+				}},
 			},
 		}
 		b, _ := json.Marshal(resp)

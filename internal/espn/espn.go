@@ -98,9 +98,14 @@ func (s *ESPNService) fetchTeamRoster(ctx context.Context, teamID int) (*TeamWit
 
 	twr := &TeamWithRoster{Team: rr.Team}
 	for _, pos := range rr.Athletes {
-		for _, athlete := range pos.Items {
-			athlete.Position = pos.Position
-			twr.Roster = append(twr.Roster, athlete)
+		for _, ra := range pos.Items {
+			twr.Roster = append(twr.Roster, Athlete{
+				AthleteID:   ra.AthleteID,
+				FirstName:   ra.FirstName,
+				LastName:    ra.LastName,
+				DisplayName: ra.DisplayName,
+				Position:    ra.Position.Abbreviation,
+			})
 		}
 	}
 
