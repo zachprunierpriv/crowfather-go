@@ -20,6 +20,16 @@ func (oai *OpenAIService) CreateVectorStore(ctx context.Context, name string) (s
 	return vs.ID, nil
 }
 
+// namedReader wraps a bytes.Reader with a filename so the OpenAI SDK
+// multipart encoder picks it up via the Name() interface instead of
+// falling back to "anonymous_file".
+type namedReader struct {
+	*bytes.Reader
+	name string
+}
+
+func (n namedReader) Name() string { return n.name }
+
 // UploadFilesToVectorStore uploads the provided documents to a vector store in a
 // single batch and polls until all files are processed.
 // docs is a map of filename → file content (Markdown bytes).
@@ -31,9 +41,9 @@ func (oai *OpenAIService) UploadFilesToVectorStore(ctx context.Context, vsID str
 	client := openai.NewClient(oai.Options...)
 
 	fileParams := make([]openai.FileNewParams, 0, len(docs))
-	for _, content := range docs {
+	for name, content := range docs {
 		fileParams = append(fileParams, openai.FileNewParams{
-			File:    bytes.NewReader(content),
+			File:    namedReader{bytes.NewReader(content), name},
 			Purpose: openai.FilePurposeAssistants,
 		})
 	}
