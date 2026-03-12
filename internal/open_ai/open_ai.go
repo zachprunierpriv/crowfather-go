@@ -19,15 +19,24 @@ type Config struct {
 	Uri          string
 }
 
+// ThreadRepository is the persistence contract for OpenAI thread IDs.
+// The concrete implementation lives in the database package.
+// A nil value is valid; OpenAIService falls back to in-memory only.
+type ThreadRepository interface {
+	GetThreadID(ctx context.Context, contextID string) (string, error)
+	SaveThreadID(ctx context.Context, contextID, threadID string) error
+}
+
 type OpenAIService struct {
 	ThreadClient *openai.BetaThreadService
 	ThreadIds    map[string]string
 	Config       *config.OpenAIConfig
 	Options      []option.RequestOption
+	Repo         ThreadRepository
 	mu           sync.RWMutex
 }
 
-func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
+func NewOpenAIService(config *config.OpenAIConfig, repo ThreadRepository) *OpenAIService {
 	var opts = []option.RequestOption{
 		option.WithAPIKey(config.APIKey),
 		option.WithBaseURL(config.BaseURL),
@@ -42,6 +51,7 @@ func NewOpenAIService(config *config.OpenAIConfig) *OpenAIService {
 		Config:       config,
 		Options:      opts,
 		ThreadIds:    make(map[string]string),
+		Repo:         repo,
 	}
 }
 
@@ -53,10 +63,26 @@ func (oai *OpenAIService) GetOrCreateThread(contextID string) (string, error) {
 		return threadId, nil
 	}
 
+	if oai.Repo != nil {
+		threadId, err := oai.Repo.GetThreadID(context.Background(), contextID)
+		if err != nil {
+			fmt.Printf("GetOrCreateThread: db lookup failed for %s: %v\n", contextID, err)
+		} else if threadId != "" {
+			oai.ThreadIds[contextID] = threadId
+			return threadId, nil
+		}
+	}
+
 	threadId, err := oai.CreateThread()
 
 	if err != nil {
 		return "", err
+	}
+
+	if oai.Repo != nil {
+		if err := oai.Repo.SaveThreadID(context.Background(), contextID, threadId); err != nil {
+			fmt.Printf("GetOrCreateThread: db save failed for %s: %v\n", contextID, err)
+		}
 	}
 
 	oai.ThreadIds[contextID] = threadId
