@@ -15,8 +15,9 @@ func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.Gr
 		return "", err
 	}
 
+	shouldRespond := strings.Contains(strings.ToLower(message.Text), "hey crowfather")
 	message.Text = cleanMessage(message.Text)
-	resp, err := processMessage(message, oai, assistantID)
+	resp, err := processMessage(message, oai, assistantID, shouldRespond)
 
 	if err != nil || resp == "" {
 		return "", err
@@ -33,16 +34,14 @@ func Handle(message groupme.Message, oai *open_ai.OpenAIService, gms *groupme.Gr
 	return "", nil
 }
 
-func processMessage(message groupme.Message, oai *open_ai.OpenAIService, assistantID string) (string, error) {
-	lowercasedMessage := strings.ToLower(message.Text)
-
+func processMessage(message groupme.Message, oai *open_ai.OpenAIService, assistantID string, shouldRespond bool) (string, error) {
 	msg, err := addMessageToThread(message, oai)
 
 	if err != nil {
 		return "", err
 	}
 
-	if strings.Contains(lowercasedMessage, "hey crowfather") {
+	if shouldRespond {
 		return respondToThread(msg, oai, assistantID)
 	}
 	return "", nil

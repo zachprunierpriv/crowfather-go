@@ -1,10 +1,30 @@
 package espn
 
+// rawAthletePosition matches ESPN's nested position object on each athlete.
+type rawAthletePosition struct {
+	Abbreviation string `json:"abbreviation"`
+}
+
+// rawAthlete is used only for decoding the ESPN API response.
+// ESPN returns each athlete's position as an object, not a string.
+type rawAthlete struct {
+	AthleteID   string             `json:"id"`
+	FirstName   string             `json:"firstName"`
+	LastName    string             `json:"lastName"`
+	DisplayName string             `json:"displayName"`
+	Position    rawAthletePosition `json:"position"`
+}
+
+type rawPosition struct {
+	Position string       `json:"position"`
+	Items    []rawAthlete `json:"items"`
+}
+
 type RosterResponse struct {
-	Timestamp string     `json:"timestamp"`
-	Status    string     `json:"status"`
-	Athletes  []Position `json:"athletes"`
-	Team      Team       `json:"team"`
+	Timestamp string        `json:"timestamp"`
+	Status    string        `json:"status"`
+	Athletes  []rawPosition `json:"athletes"`
+	Team      Team          `json:"team"`
 }
 
 type Position struct {
@@ -17,7 +37,7 @@ type Athlete struct {
 	FirstName   string `json:"firstName"`
 	LastName    string `json:"lastName"`
 	DisplayName string `json:"displayName"`
-	Position    string `json:"position"`
+	Position    string
 }
 
 type Team struct {
